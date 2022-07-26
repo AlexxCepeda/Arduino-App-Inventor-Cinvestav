@@ -20,37 +20,43 @@ int tempR1, tempR2;
 
 
 void setup() {
-  DataRec[0]=0;
+  DataRec[0]=0; // Iniciamos el valor de los datos recibidos con cero
   DataRec[1]=0;
+  flag1 = 0;   // Las banderas auxiliares iniciadas en cero.
+  flag2 = 0;
   Serial1.begin(38400); //Comunicación Serial con BT a 38400 baudios 
   pinMode(enPos,OUTPUT);  //Pin de salida digital para el LED (positiva)
   pinMode(BUZZ,OUTPUT);  //Pin de salida digital para el BUZZER
   pinMode(enNeg,OUTPUT);  //Pin de salida digital negativa
-  EEPROM.get(0, tempAux); // Obtenemos el valor que tiene guardado la EEPROM
+  EEPROM.get(0, tempAux); // Obtenemos el valor que tiene guardado la EEPROM y la guardamos en la variable tempAux
   guardarTemperaturas[1] = tempAux; // Almacenamos el valor de la EEPROM en el index 1 del vector 
-  tempRecibida = tempAux;
+  tempRecibida = tempAux;  // Iniciamos el valor de la temperatura recibida con el valor de la EEPROM.
+  digitalWrite(BUZZ, HIGH); 
+  delay(200);
+  digitalWrite(BUZZ, LOW); 
 }
 
  
 void loop() {
-  float temp = 0.0;  //Se inicia cada loop 
-  temp = Sensar();
-  //Serial1.println(temp);
-  //Serial1.println(tempRecibida);
+  float temp = 0.0;  //Se inicia cada loop en cero 
+  temp = Sensar(); // variable temp iniciada con el valor que detecta el sensor LM35
+  Serial1.println(temp);
+  //Serial1.println(tempAux);
+  //Serial1.println(guardarTemperaturas[1]);
   if(Serial1.available()>0){
       StringRec = Serial1.readString();
   }
-  if (StringRec == "Con"){
+  if (StringRec == "Con"){  // Si lee que se establecio comunicación con el celular 
     flag1 = 1;
     flag2 = 1;
     Serial1.begin(38400); //Comunicación Serial con BT a 38400 baudios
-    do{
+    while(StringRec != "gotit"){
       if(Serial1.available()>0){
         StringRec=Serial1.readString();
       }
       Serial1.println(tempAux);
       delay(100);
-    }while(StringRec != "gotit");
+    }
   }
   while(flag1 == 1){
     temp = Sensar();
@@ -78,20 +84,23 @@ void loop() {
     if(tempRecibida == 0.00){
       tempRecibida = tempAux;
     }
-    //Serial1.println(tempRecibida);
-    //Serial1.println(tempAux);
-    //EEPROM.get(0, tempAux);
     guardarTemperaturas[0] = tempRecibida;
-    if(guardarTemperaturas[0] != guardarTemperaturas[1] && guardarTemperaturas[0]>0 && guardarTemperaturas[0] != 68.11 
-    && guardarTemperaturas[0] != 12.99 && guardarTemperaturas[0] != 114.99 && guardarTemperaturas[0] != 69.05 && guardarTemperaturas[0] != 115.99){
-      EEPROM.put(0, guardarTemperaturas[0]);
-      guardarTemperaturas[1] = guardarTemperaturas[0];
+    if(Serial1.available()>0){
+      StringRec = Serial1.readString();
+    }
+    if(StringRec == "newtemp"){
+      if(guardarTemperaturas[0] != guardarTemperaturas[1] && guardarTemperaturas[0]>0 && guardarTemperaturas[0] != 68.11 
+      && guardarTemperaturas[0] != 12.99 && guardarTemperaturas[0] < 100.00 && guardarTemperaturas[0] != 69.05){
+        EEPROM.put(0, guardarTemperaturas[0]);
+        guardarTemperaturas[1] = guardarTemperaturas[0];
+      }
     }
     comparar();
     delay(200);
    }
-  comparar();
+  
   // Esperamos un tiempo para repetir el loop
+  comparar();
   delay(200);
 }
 
@@ -100,7 +109,7 @@ void loop() {
 void comparar(){
       //Si ya llegó un límite de temperatura
       tempAux = guardarTemperaturas[1];
-      if(tempAux!=0.0){
+      if(tempAux != 0.0){
         //Revisar si la temperatura promedio es mayor al límite permitido
         if(tempProm>=tempAux+0.5){
             digitalWrite(enPos, HIGH);
@@ -122,12 +131,11 @@ void comparar(){
             digitalWrite(enPos, LOW);
             digitalWrite(BUZZ, LOW);
        
-        }
-            else{
-                digitalWrite(enPos, LOW);
-                digitalWrite(BUZZ, LOW);
-                digitalWrite(enNeg, HIGH);
-            }
+        }else{
+          digitalWrite(enPos, LOW);
+          digitalWrite(BUZZ, LOW);
+          digitalWrite(enNeg, HIGH);
+         }
        }
        else{
           digitalWrite(enPos, LOW);
@@ -147,8 +155,9 @@ float Sensar(){
       /* Calculamos la temperatura con la fórmula, 
       o con un mapeo ya que la relación es lineal*/
       //tempC = map(tempC, 0, 1024, 0.0, 472.0); //Mapeo
-      //tempC = (4.72 * sensor * 100.0)/1024.0;   //Fórmula
-      tempC = (5.00 * sensor * 100.0)/1024.0;   //Fórmula
+      tempC = (4.72 * (sensor/10) * 100.0)/1023.0;   //Fórmula
+      //tempC = (5.00 * (sensor/10) * 100.0)/1024.0;   //Fórmula
+      //tempC = (4.25 * (sensor/10) * 100.0)/1024.0;   //Fórmula
       tempProm = tempProm + tempC;  //Se suma cada iteración para sacar el promedio al final
   }
   tempProm = tempProm/50; //Se calcula el promedio después del ciclo for
